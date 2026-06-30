@@ -1,0 +1,52 @@
+# cd ~/hiddenpmbot
+root@fastcreate-018519:~/hiddenpmbot# echo "=== OS ===" && uname -a && echo "=== Node ===" && node -v && echo "=== PM2 ===" && pm2 list 2>/dev/null || echo "pm2 نصب نیست" && echo "=== Processes ===" && ps aux | grep -E "node|bot" | grep -v grep && echo "=== Git Status ===" && git status && git log --oneline -3 && echo "=== Bot Dir ===" && ls -la
+=== OS ===
+Linux fastcreate-018519 6.8.0-31-generic #31-Ubuntu SMP PREEMPT_DYNAMIC Sat Apr 20 00:40:06 UTC 2024 x86_64 x86_64 x86_64 GNU/Linux
+=== Node ===
+v22.23.1
+=== PM2 ===
+┌────┬────────────────────┬──────────┬──────┬───────────┬──────────┬──────────┐
+│ id │ name               │ mode     │ ↺    │ status    │ cpu      │ memory   │
+├────┼────────────────────┼──────────┼──────┼───────────┼──────────┼──────────┤
+│ 0  │ anchatbot          │ fork     │ 0    │ online    │ 0%       │ 95.1mb   │
+└────┴────────────────────┴──────────┴──────┴───────────┴──────────┴──────────┘
+=== Processes ===
+70          5608  0.0  0.8 178564 16764 ?        Ss   Jun11   0:13 postgres: smm smmbot 172.18.0.4(42516) idle
+70          5609  0.0  0.7 178008 15612 ?        Ss   Jun11   0:12 postgres: smm smmbot 172.18.0.4(42518) idle
+root      171427  0.0  6.9 238152 139700 ?       Ssl  Jun24   1:31 /opt/tg-bots/shop-bot-8997654286/venv/bin/python3 /opt/tg-bots/shop-bot-8997654286/main.py
+root      171458  0.0  7.9 550600 160248 ?       Ssl  Jun24   1:37 /opt/foti/venv/bin/python -m football_bot.main
+root      199522  0.0  2.8 1644068 56716 ?       Sl   Jun24   1:23 node --enable-source-maps artifacts/api-server/dist/index.mjs
+root      704612  0.0  2.3 354124 47152 ?        Ssl  Jun25   2:41 /root/cookie/venv/bin/python3 /root/cookie/bot.py
+root     2358339  0.0  4.8 1285476 97416 ?       Ssl  18:13   0:00 node /usr/bin/pnpm --filter @workspace/api-server run start
+root     2358417  0.0  0.0   2808  1792 ?        S    18:14   0:00 sh -c node --enable-source-maps ./dist/index.mjs
+root     2358420  0.0  5.4 1281328 109340 ?      Sl   18:14   0:02 node --enable-source-maps ./dist/index.mjs
+root     2380368  0.6  4.3 11748948 87776 ?      Ssl  19:46   0:06 /usr/bin/node /opt/hidepass-bot/bot.mjs
+=== Git Status ===
+On branch main
+Your branch is up to date with 'origin/main'.
+
+nothing to commit, working tree clean
+f48d697 (HEAD -> main, origin/main, origin/HEAD) Improve broadcast message sending to handle Telegram rate limits
+c1ba311 Add a screenshot to the project assets
+a508dee Add an image asset to the project files
+=== Bot Dir ===
+total 272
+drwxr-xr-x  8 root root   4096 Jun 30 19:45 .
+drwx------ 19 root root   4096 Jun 30 20:03 ..
+drwxr-xr-x  4 root root   4096 Jun 30 19:30 artifacts
+drwxr-xr-x  2 root root   4096 Jun 30 19:45 attached_assets
+drwxr-xr-x  8 root root   4096 Jun 30 20:03 .git
+-rw-r--r--  1 root root    668 Jun 23 16:45 .gitignore
+drwxr-xr-x  6 root root   4096 Jun 23 16:45 lib
+drwxr-xr-x  5 root root   4096 Jun 30 19:31 node_modules
+-rw-r--r--  1 root root     56 Jun 23 16:45 .npmrc
+-rw-r--r--  1 root root    585 Jun 30 19:30 package.json
+-rw-r--r--  1 root root 203182 Jun 30 19:30 pnpm-lock.yaml
+-rw-r--r--  1 root root   6579 Jun 23 16:45 pnpm-workspace.yaml
+-rw-r--r--  1 root root    822 Jun 30 19:45 .replit
+-rw-r--r--  1 root root    201 Jun 23 16:45 .replitignore
+-rw-r--r--  1 root root   3293 Jun 30 19:30 replit.md
+drwxr-xr-x  4 root root   4096 Jun 30 19:31 scripts
+-rw-r--r--  1 root root    692 Jun 23 16:45 tsconfig.base.json
+-rw-r--r--  1 root root    236 Jun 23 16:45 tsconfig.json
+root@fastcreate-018519:~/hiddenpmbot# 
