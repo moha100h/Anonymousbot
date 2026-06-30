@@ -495,6 +495,18 @@ bot.on("message", async (msg) => {
   if (msg.text?.startsWith("/")) return;
 
   const tid = msg.from.id;
+
+  try {
+    await handleMessage(msg, tid);
+  } catch (err) {
+    console.error("Message handler error:", err);
+    try {
+      await bot.sendMessage(tid, "❌ خطایی رخ داد. لطفاً دوباره تلاش کنید.");
+    } catch {}
+  }
+});
+
+async function handleMessage(msg: Message, tid: number) {
   await getOrCreateUser(msg);
   const stateRow = await getState(tid);
 
@@ -584,11 +596,7 @@ bot.on("message", async (msg) => {
     let failed = 0;
     for (const u of users) {
       try {
-        if (msg.text) {
-          await bot.sendMessage(u.telegramId, msg.text);
-        } else {
-          await forwardMedia(u.telegramId, msg);
-        }
+        await bot.copyMessage(u.telegramId, msg.chat.id, msg.message_id);
         sent++;
       } catch {
         failed++;
@@ -734,7 +742,7 @@ bot.on("message", async (msg) => {
     }
     return;
   }
-});
+}
 
 // ─── Media helpers ────────────────────────────────────────────────────────────
 async function forwardMediaWithButton(targetId: number, msg: Message, senderTid: number | null) {
