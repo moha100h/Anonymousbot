@@ -594,15 +594,34 @@ async function handleMessage(msg: Message, tid: number) {
       .where(eq(usersTable.isBlocked, false));
     let sent = 0;
     let failed = 0;
-    for (const u of users) {
-      try {
-        await bot.copyMessage(u.telegramId, msg.chat.id, msg.message_id);
-        sent++;
-      } catch {
-        failed++;
-      }
-    }
+
     await setState(tid, "idle");
+    await bot.sendMessage(tid, `📢 در حال ارسال پیام همگانی به ${users.length} کاربر...\nلطفاً صبر کنید.`);
+
+    const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+    for (const u of users) {
+      let retries = 3;
+      while (retries > 0) {
+        try {
+          await bot.copyMessage(u.telegramId, msg.chat.id, msg.message_id);
+          sent++;
+          break;
+        } catch (err: any) {
+          const retryAfter = err?.response?.body?.parameters?.retry_after;
+          if (retryAfter) {
+            await sleep(retryAfter * 1000 + 500);
+          } else {
+            failed++;
+            break;
+          }
+          retries--;
+          if (retries === 0) failed++;
+        }
+      }
+      await sleep(50);
+    }
+
     await bot.sendMessage(
       tid,
       `📢 ارسال همگانی تمام شد.\n✅ موفق: ${sent}\n❌ ناموفق: ${failed}`
