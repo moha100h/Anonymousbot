@@ -1,20 +1,50 @@
-// Export your models here. Add one export per file
-// export * from "./posts";
-//
-// Each model/table should ideally be split into different files.
-// Each model/table should define a Drizzle table, insert schema, and types:
-//
-//   import { pgTable, text, serial } from "drizzle-orm/pg-core";
-//   import { createInsertSchema } from "drizzle-zod";
-//   import { z } from "zod/v4";
-//
-//   export const postsTable = pgTable("posts", {
-//     id: serial("id").primaryKey(),
-//     title: text("title").notNull(),
-//   });
-//
-//   export const insertPostSchema = createInsertSchema(postsTable).omit({ id: true });
-//   export type InsertPost = z.infer<typeof insertPostSchema>;
-//   export type Post = typeof postsTable.$inferSelect;
+import { pgTable, text, serial, bigint, boolean, timestamp, integer } from "drizzle-orm/pg-core";
+import { createInsertSchema } from "drizzle-zod";
+import { z } from "zod/v4";
 
-export {}
+export const usersTable = pgTable("users", {
+  id: serial("id").primaryKey(),
+  telegramId: bigint("telegram_id", { mode: "number" }).notNull().unique(),
+  username: text("username"),
+  firstName: text("first_name"),
+  lastName: text("last_name"),
+  anonToken: text("anon_token").notNull().unique(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  lastActiveAt: timestamp("last_active_at").defaultNow().notNull(),
+  isBlocked: boolean("is_blocked").default(false).notNull(),
+  messageCount: integer("message_count").default(0).notNull(),
+});
+
+export const groupLinksTable = pgTable("group_links", {
+  id: serial("id").primaryKey(),
+  token: text("token").notNull().unique(),
+  name: text("name").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  isActive: boolean("is_active").default(true).notNull(),
+  showSenderHint: boolean("show_sender_hint").default(false).notNull(),
+  messageCount: integer("message_count").default(0).notNull(),
+});
+
+export const groupMembersTable = pgTable("group_members", {
+  id: serial("id").primaryKey(),
+  groupLinkId: integer("group_link_id").notNull().references(() => groupLinksTable.id),
+  telegramId: bigint("telegram_id", { mode: "number" }).notNull(),
+  addedAt: timestamp("added_at").defaultNow().notNull(),
+});
+
+export const userStatesTable = pgTable("user_states", {
+  id: serial("id").primaryKey(),
+  telegramId: bigint("telegram_id", { mode: "number" }).notNull().unique(),
+  state: text("state").notNull().default("idle"),
+  targetToken: text("target_token"),
+  targetType: text("target_type"),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertUserSchema = createInsertSchema(usersTable).omit({ id: true, createdAt: true, lastActiveAt: true });
+export const insertGroupLinkSchema = createInsertSchema(groupLinksTable).omit({ id: true, createdAt: true });
+
+export type User = typeof usersTable.$inferSelect;
+export type GroupLink = typeof groupLinksTable.$inferSelect;
+export type GroupMember = typeof groupMembersTable.$inferSelect;
+export type UserState = typeof userStatesTable.$inferSelect;
