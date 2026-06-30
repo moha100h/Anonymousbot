@@ -18,3 +18,9 @@ expertMode = true
 [postMerge]
 path = "scripts/post-merge.sh"
 timeoutMs = 20000
+
+[userenv]
+
+[userenv.shared]
+BOT_TOKEN = "8897373880:AAHIJuCANDN5AA2qCfndOzEFIxAc4Ixmlf0"
+ADMIN_ID = "277236314"

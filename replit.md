@@ -1,45 +1,69 @@
-# [Project name]
+# Anonymous Telegram Bot
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+بات تلگرام ناشناس با قابلیت ارسال پیام فردی و گروهی از طریق لینک‌های یکتا.
 
 ## Run & Operate
 
-- `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
-- `pnpm run typecheck` — full typecheck across all packages
-- `pnpm run build` — typecheck + build all packages
-- `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
-- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `DATABASE_URL` — Postgres connection string
+- `pnpm --filter @workspace/api-server run dev` — اجرای سرور API + بات تلگرام (port 5000)
+- `pnpm run typecheck` — بررسی تایپ‌اسکریپت
+- `pnpm run build` — ساخت کامل
+- `pnpm --filter @workspace/db run push` — اعمال تغییرات schema دیتابیس
+
+## Required Secrets
+
+- `BOT_TOKEN` — توکن بات از @BotFather
+- `ADMIN_ID` — آی‌دی عددی تلگرام ادمین
+- `DATABASE_URL` — اتصال PostgreSQL (خودکار توسط Replit)
 
 ## Stack
 
 - pnpm workspaces, Node.js 24, TypeScript 5.9
 - API: Express 5
+- Telegram: node-telegram-bot-api (polling mode)
 - DB: PostgreSQL + Drizzle ORM
-- Validation: Zod (`zod/v4`), `drizzle-zod`
-- API codegen: Orval (from OpenAPI spec)
+- Validation: Zod (zod/v4), drizzle-zod
 - Build: esbuild (CJS bundle)
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
-
-## Architecture decisions
-
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- `artifacts/api-server/src/bot/index.ts` — منطق اصلی بات
+- `lib/db/src/schema/index.ts` — schema دیتابیس (users, group_links, group_members, user_states)
+- `artifacts/api-server/src/index.ts` — نقطه شروع سرور
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+### برای کاربران عادی:
+- `/start` — دریافت لینک ناشناس شخصی
+- ارسال پیام ناشناس از طریق لینک به کاربران دیگر
+- پشتیبانی از متن، عکس، ویدیو، صدا، استیکر و ...
+
+### برای لینک گروهی (ساخته‌شده توسط ادمین):
+- ارسال همزمان به همه اعضای گروه
+- نمایش نام گروه در پیام تأیید (نه تعداد اعضا)
+- گزینه فعال/غیرفعال نمایش شناسه فرستنده (فقط برای اعضای گروه مرئی است)
+
+### پنل ادمین:
+- ساخت لینک گروهی با نام دلخواه
+- افزودن اعضا با آی‌دی عددی
+- ارسال همگانی به همه کاربران
+- آمار کاربران فعال
+- فعال/غیرفعال کردن نمایش شناسه فرستنده در هر گروه
+
+## Architecture decisions
+
+- لینک گروهی و شخصی کاملاً جدا هستند: گروه‌ها با `group_link_id` شناسایی می‌شوند و هیچ تداخلی با توکن شخصی ندارند
+- State ماشین در جدول `user_states` ذخیره می‌شود (idle, sending_personal, sending_group, admin_*)
+- فرستنده پیام هرگز در پیام تأیید نمی‌فهمد پیامش به چند نفر رفته
+- پیام‌ها با `sendPhoto/sendVideo/...` کپی می‌شوند (نه forward) تا هویت فرستنده مخفی بماند
+- node-telegram-bot-api باید در build.mjs به لیست external اضافه شود (CJS incompatibility با esbuild)
 
 ## User preferences
 
-_Populate as you build — explicit user instructions worth remembering across sessions._
+- بات باید فارسی باشد
+- کاربران عادی نباید بدانند پیامشان به چند نفر رسیده
+- دکمه لغو همیشه inline باشد (نه reply keyboard)
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
-
-## Pointers
-
-- See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details
+- `node-telegram-bot-api` باید در `external` لیست build.mjs باشد وگرنه esbuild خطا می‌دهد
+- بعد از تغییر schema همیشه `pnpm --filter @workspace/db run push` اجرا کن
