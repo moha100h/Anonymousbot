@@ -5,6 +5,7 @@ import {
   groupLinksTable,
   groupMembersTable,
   userStatesTable,
+  adSettingsTable,
 } from "@workspace/db";
 import { eq, sql, and, asc } from "drizzle-orm";
 import crypto from "crypto";
@@ -46,6 +47,15 @@ async function getOrCreateUser(msg: Message) {
       anonToken: token,
       isBlocked: false,
       messageCount: 0,
+    })
+    .onConflictDoUpdate({
+      target: usersTable.telegramId,
+      set: {
+        username: msg.from!.username ?? null,
+        firstName: msg.from!.first_name ?? null,
+        lastName: msg.from!.last_name ?? null,
+        lastActiveAt: new Date(),
+      },
     })
     .returning();
   return user!;
@@ -95,11 +105,29 @@ bot.getMe().then((me) => {
   console.log(`Bot started: @${botUsername}`);
 });
 
-const cancelKeyboard = {
-  reply_markup: {
-    inline_keyboard: [[{ text: "❌ لغو", callback_data: "cancel" }]],
-  },
-};
+async function getActiveAd() {
+  const rows = await db
+    .select()
+    .from(adSettingsTable)
+    .where(eq(adSettingsTable.isActive, true))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+async function getCancelKeyboard() {
+  const ad = await getActiveAd();
+  const rows: { text: string; callback_data?: string; url?: string }[][] = [
+    [{ text: "❌ لغو", callback_data: "cancel" }],
+  ];
+  if (ad) {
+    if (ad.type === "url") {
+      rows.push([{ text: ad.buttonText, url: ad.content }]);
+    } else {
+      rows.push([{ text: ad.buttonText, callback_data: "ad_click" }]);
+    }
+  }
+  return { reply_markup: { inline_keyboard: rows } };
+}
 
 // ─── /start ─────────────────────────────────────────────────────────────────
 bot.onText(/^\/start(.*)$/, async (msg, match) => {
@@ -120,10 +148,11 @@ bot.onText(/^\/start(.*)$/, async (msg, match) => {
     if (groupRows[0]) {
       const group = groupRows[0];
       await setState(tid, "sending_group", token, "group");
+      const ck = await getCancelKeyboard();
       await bot.sendMessage(
         tid,
         `✉️ از الان هر چی بفرستی به صورت ناشناس برای *${group.name}* ارسال میشه.`,
-        { parse_mode: "Markdown", ...cancelKeyboard }
+        { parse_mode: "Markdown", ...ck }
       );
       return;
     }
@@ -141,10 +170,11 @@ bot.onText(/^\/start(.*)$/, async (msg, match) => {
         return;
       }
       await setState(tid, "sending_personal", token, "personal");
+      const ck = await getCancelKeyboard();
       await bot.sendMessage(
         tid,
         `✉️ از الان هر چی بفرستی به صورت ناشناس برای *${target.firstName ?? "کاربر"}* ارسال میشه.`,
-        { parse_mode: "Markdown", ...cancelKeyboard }
+        { parse_mode: "Markdown", ...ck }
       );
       return;
     }
@@ -212,6 +242,10 @@ async function sendUserMenu(tid: number) {
 }
 
 async function sendAdminPanel(tid: number) {
+  const ad = await getActiveAd();
+  const adLabel = ad
+    ? `📣 تبلیغ: «${ad.buttonText}» ✅`
+    : "📣 تنظیم تبلیغ";
   await bot.sendMessage(tid, "👑 *پنل ادمین*\n\nبه پنل مدیریت بات خوش آمدید.", {
     parse_mode: "Markdown",
     reply_markup: {
@@ -230,6 +264,9 @@ async function sendAdminPanel(tid: number) {
         ],
         [
           { text: "👥 لیست کاربران", callback_data: "admin_users_0" },
+        ],
+        [
+          { text: adLabel, callback_data: "admin_ad" },
         ],
       ],
     },
@@ -283,12 +320,97 @@ bot.on("callback_query", async (query: CallbackQuery) => {
 
   if (!isAdmin(tid)) return;
 
+  if (data === "ad_click") {
+    const ad = await getActiveAd();
+    if (ad && ad.type === "message") {
+      await bot.sendMessage(tid, ad.content, { parse_mode: "HTML" });
+    }
+    return;
+  }
+
+  if (data === "admin_ad") {
+    if (!isAdmin(tid)) return;
+    const ad = await getActiveAd();
+    if (ad) {
+      const typeLabel = ad.type === "url" ? `🔗 لینک: ${ad.content}` : `💬 پیام متنی`;
+      await bot.sendMessage(
+        tid,
+        `📣 *تبلیغ فعال*\n\n🏷 متن دکمه: *${ad.buttonText}*\n📌 نوع: ${typeLabel}`,
+        {
+          parse_mode: "Markdown",
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: "✏️ ویرایش تبلیغ", callback_data: "admin_ad_set" }],
+              [{ text: "🗑 حذف تبلیغ", callback_data: "admin_ad_delete" }],
+              [{ text: "🔙 بازگشت", callback_data: "back_admin" }],
+            ],
+          },
+        }
+      );
+    } else {
+      await bot.sendMessage(
+        tid,
+        "📣 *تنظیم دکمه تبلیغاتی*\n\nهنوز تبلیغی تنظیم نشده است.\nیک دکمه تبلیغاتی زیر دکمه لغو به همه کاربران نشان داده می‌شود.",
+        {
+          parse_mode: "Markdown",
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: "➕ افزودن تبلیغ", callback_data: "admin_ad_set" }],
+              [{ text: "🔙 بازگشت", callback_data: "back_admin" }],
+            ],
+          },
+        }
+      );
+    }
+    return;
+  }
+
+  if (data === "admin_ad_set") {
+    if (!isAdmin(tid)) return;
+    await setState(tid, "admin_ad_text");
+    await bot.sendMessage(
+      tid,
+      "✏️ *متن دکمه تبلیغاتی را بنویسید:*\n\n_مثال: 🎁 دریافت هدیه ویژه_",
+      {
+        parse_mode: "Markdown",
+        reply_markup: { inline_keyboard: [[{ text: "❌ لغو", callback_data: "cancel" }]] },
+      }
+    );
+    return;
+  }
+
+  if (data === "admin_ad_delete") {
+    if (!isAdmin(tid)) return;
+    await db.update(adSettingsTable).set({ isActive: false });
+    await bot.sendMessage(tid, "✅ تبلیغ حذف شد.");
+    await sendAdminPanel(tid);
+    return;
+  }
+
+  if (data.startsWith("admin_ad_type_")) {
+    if (!isAdmin(tid)) return;
+    const withoutPrefix = data.replace("admin_ad_type_", "");
+    const sepIdx = withoutPrefix.indexOf("_");
+    const type = withoutPrefix.slice(0, sepIdx);
+    const buttonText = decodeURIComponent(withoutPrefix.slice(sepIdx + 1));
+    await setState(tid, "admin_ad_content", buttonText, type);
+    const prompt = type === "url"
+      ? "🔗 آدرس لینک را وارد کنید:\n\n_مثال: https://t.me/yourchannel_"
+      : "💬 متن پیامی که کاربر می‌بیند را بنویسید:\n_(می‌تواند HTML باشد)_";
+    await bot.sendMessage(tid, prompt, {
+      parse_mode: "Markdown",
+      reply_markup: { inline_keyboard: [[{ text: "❌ لغو", callback_data: "cancel" }]] },
+    });
+    return;
+  }
+
   if (data === "admin_create_group") {
     await setState(tid, "admin_create_group_name");
+    const ck = await getCancelKeyboard();
     await bot.sendMessage(
       tid,
       "📝 نام لینک گروهی را وارد کنید:\n(این نام در پیام کاربران نمایش داده می‌شود)",
-      cancelKeyboard
+      ck
     );
     return;
   }
@@ -352,7 +474,7 @@ bot.on("callback_query", async (query: CallbackQuery) => {
     await bot.sendMessage(
       tid,
       "📢 پیام همگانی را بنویسید (به همه کاربران فعال ارسال می‌شود):",
-      cancelKeyboard
+      { reply_markup: { inline_keyboard: [[{ text: "❌ لغو", callback_data: "cancel" }]] } }
     );
     return;
   }
@@ -444,7 +566,7 @@ bot.on("callback_query", async (query: CallbackQuery) => {
     await bot.sendMessage(
       tid,
       "📱 آی‌دی عددی تلگرام کاربر را وارد کنید:\n(مثال: 123456789)",
-      cancelKeyboard
+      { reply_markup: { inline_keyboard: [[{ text: "❌ لغو", callback_data: "cancel" }]] } }
     );
     return;
   }
@@ -518,10 +640,67 @@ async function handleMessage(msg: Message, tid: number) {
 
   const { state, targetToken } = stateRow;
 
+  if (state === "admin_ad_text" && isAdmin(tid)) {
+    const buttonText = msg.text?.trim();
+    if (!buttonText) {
+      await bot.sendMessage(tid, "❗ متن نمی‌تواند خالی باشد.", {
+        reply_markup: { inline_keyboard: [[{ text: "❌ لغو", callback_data: "cancel" }]] },
+      });
+      return;
+    }
+    await bot.sendMessage(
+      tid,
+      `✅ متن دکمه: *${buttonText}*\n\n📌 نوع تبلیغ را انتخاب کنید:`,
+      {
+        parse_mode: "Markdown",
+        reply_markup: {
+          inline_keyboard: [
+            [
+              { text: "🔗 لینک (URL)", callback_data: `admin_ad_type_url_${encodeURIComponent(buttonText)}` },
+              { text: "💬 پیام متنی", callback_data: `admin_ad_type_msg_${encodeURIComponent(buttonText)}` },
+            ],
+            [{ text: "❌ لغو", callback_data: "cancel" }],
+          ],
+        },
+      }
+    );
+    return;
+  }
+
+  if (state === "admin_ad_content" && isAdmin(tid) && targetToken) {
+    const content = msg.text?.trim();
+    if (!content) {
+      await bot.sendMessage(tid, "❗ محتوا نمی‌تواند خالی باشد.", {
+        reply_markup: { inline_keyboard: [[{ text: "❌ لغو", callback_data: "cancel" }]] },
+      });
+      return;
+    }
+    const buttonText = targetToken;
+    const type = stateRow.targetType ?? "url";
+    await db.update(adSettingsTable).set({ isActive: false });
+    await db.insert(adSettingsTable).values({
+      buttonText,
+      type,
+      content,
+      isActive: true,
+    });
+    await setState(tid, "idle");
+    const typeLabel = type === "url" ? "🔗 لینک" : "💬 پیام متنی";
+    await bot.sendMessage(
+      tid,
+      `✅ *تبلیغ با موفقیت ذخیره شد!*\n\n🏷 دکمه: *${buttonText}*\n📌 نوع: ${typeLabel}\n📎 محتوا: \`${content}\`\n\nاین دکمه از این به بعد زیر دکمه لغو برای همه کاربران نمایش داده می‌شود.`,
+      { parse_mode: "Markdown" }
+    );
+    await sendAdminPanel(tid);
+    return;
+  }
+
   if (state === "admin_create_group_name" && isAdmin(tid)) {
     const name = msg.text?.trim();
     if (!name) {
-      await bot.sendMessage(tid, "❗ نام نمی‌تواند خالی باشد.", cancelKeyboard);
+      await bot.sendMessage(tid, "❗ نام نمی‌تواند خالی باشد.", {
+        reply_markup: { inline_keyboard: [[{ text: "❌ لغو", callback_data: "cancel" }]] },
+      });
       return;
     }
     await bot.sendMessage(
@@ -545,7 +724,7 @@ async function handleMessage(msg: Message, tid: number) {
   if (state === "admin_add_member_id" && isAdmin(tid) && targetToken) {
     const inputId = Number(msg.text?.trim());
     if (!inputId || isNaN(inputId)) {
-      await bot.sendMessage(tid, "❗ آی‌دی نامعتبر است. لطفاً یک عدد وارد کنید.", cancelKeyboard);
+      await bot.sendMessage(tid, "❗ آی‌دی نامعتبر است. لطفاً یک عدد وارد کنید.", { reply_markup: { inline_keyboard: [[{ text: "❌ لغو", callback_data: "cancel" }]] } });
       return;
     }
     const gid = Number(targetToken);
@@ -570,7 +749,9 @@ async function handleMessage(msg: Message, tid: number) {
       )
       .limit(1);
     if (existing[0]) {
-      await bot.sendMessage(tid, "❗ این کاربر قبلاً عضو این گروه است.", cancelKeyboard);
+      await bot.sendMessage(tid, "❗ این کاربر قبلاً عضو این گروه است.", {
+        reply_markup: { inline_keyboard: [[{ text: "❌ لغو", callback_data: "cancel" }]] },
+      });
       return;
     }
     await db.insert(groupMembersTable).values({
@@ -654,11 +835,8 @@ async function handleMessage(msg: Message, tid: number) {
       .where(eq(groupMembersTable.groupLinkId, group[0].id));
 
     if (!members.length) {
-      await bot.sendMessage(
-        tid,
-        `✅ پیام ناشناس به ${group[0].name} ارسال شد.`,
-        cancelKeyboard
-      );
+      const ck = await getCancelKeyboard();
+      await bot.sendMessage(tid, `✅ پیام ناشناس به ${group[0].name} ارسال شد.`, ck);
       return;
     }
 
@@ -705,11 +883,8 @@ async function handleMessage(msg: Message, tid: number) {
         .where(eq(usersTable.telegramId, tid)),
     ]);
 
-    await bot.sendMessage(
-      tid,
-      `✅ پیام ناشناس به ${group[0].name} ارسال شد.`,
-      cancelKeyboard
-    );
+    const ck2 = await getCancelKeyboard();
+    await bot.sendMessage(tid, `✅ پیام ناشناس به ${group[0].name} ارسال شد.`, ck2);
     return;
   }
 
@@ -747,17 +922,11 @@ async function handleMessage(msg: Message, tid: number) {
         .set({ messageCount: sql`${usersTable.messageCount} + 1` })
         .where(eq(usersTable.telegramId, tid));
 
-      await bot.sendMessage(
-        tid,
-        `✅ پیام ناشناس به ${targetName} ارسال شد.`,
-        cancelKeyboard
-      );
+      const ck = await getCancelKeyboard();
+      await bot.sendMessage(tid, `✅ پیام ناشناس به ${targetName} ارسال شد.`, ck);
     } catch {
-      await bot.sendMessage(
-        tid,
-        `❌ ارسال ناموفق بود. احتمالاً کاربر بات را بلاک کرده است.`,
-        cancelKeyboard
-      );
+      const ck = await getCancelKeyboard();
+      await bot.sendMessage(tid, `❌ ارسال ناموفق بود. احتمالاً کاربر بات را بلاک کرده است.`, ck);
     }
     return;
   }

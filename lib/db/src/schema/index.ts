@@ -41,6 +41,15 @@ export const userStatesTable = pgTable("user_states", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+export const adSettingsTable = pgTable("ad_settings", {
+  id: serial("id").primaryKey(),
+  buttonText: text("button_text").notNull(),
+  type: text("type").notNull(), // 'url' | 'message'
+  content: text("content").notNull(),
+  isActive: boolean("is_active").default(true).notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 export const insertUserSchema = createInsertSchema(usersTable).omit({ id: true, createdAt: true, lastActiveAt: true });
 export const insertGroupLinkSchema = createInsertSchema(groupLinksTable).omit({ id: true, createdAt: true });
 
@@ -48,3 +57,4 @@ export type User = typeof usersTable.$inferSelect;
 export type GroupLink = typeof groupLinksTable.$inferSelect;
 export type GroupMember = typeof groupMembersTable.$inferSelect;
 export type UserState = typeof userStatesTable.$inferSelect;
+export type AdSetting = typeof adSettingsTable.$inferSelect;
