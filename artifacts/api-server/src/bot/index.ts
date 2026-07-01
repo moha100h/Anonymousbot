@@ -318,8 +318,6 @@ bot.on("callback_query", async (query: CallbackQuery) => {
     return;
   }
 
-  if (!isAdmin(tid)) return;
-
   if (data === "ad_click") {
     const ad = await getActiveAd();
     if (ad && ad.type === "message") {
@@ -327,6 +325,8 @@ bot.on("callback_query", async (query: CallbackQuery) => {
     }
     return;
   }
+
+  if (!isAdmin(tid)) return;
 
   if (data === "admin_ad") {
     if (!isAdmin(tid)) return;
@@ -387,16 +387,20 @@ bot.on("callback_query", async (query: CallbackQuery) => {
     return;
   }
 
-  if (data.startsWith("admin_ad_type_")) {
+  if (data === "admin_ad_type_url" || data === "admin_ad_type_msg") {
     if (!isAdmin(tid)) return;
-    const withoutPrefix = data.replace("admin_ad_type_", "");
-    const sepIdx = withoutPrefix.indexOf("_");
-    const type = withoutPrefix.slice(0, sepIdx);
-    const buttonText = decodeURIComponent(withoutPrefix.slice(sepIdx + 1));
+    const stateRow = await getState(tid);
+    const buttonText = stateRow?.targetToken;
+    if (!buttonText) {
+      await bot.sendMessage(tid, "❗ خطا: متن دکمه یافت نشد. دوباره از ابتدا تنظیم کنید.");
+      await sendAdminPanel(tid);
+      return;
+    }
+    const type = data === "admin_ad_type_url" ? "url" : "message";
     await setState(tid, "admin_ad_content", buttonText, type);
     const prompt = type === "url"
       ? "🔗 آدرس لینک را وارد کنید:\n\n_مثال: https://t.me/yourchannel_"
-      : "💬 متن پیامی که کاربر می‌بیند را بنویسید:\n_(می‌تواند HTML باشد)_";
+      : "💬 متن پیامی که کاربر می‌بیند را بنویسید:";
     await bot.sendMessage(tid, prompt, {
       parse_mode: "Markdown",
       reply_markup: { inline_keyboard: [[{ text: "❌ لغو", callback_data: "cancel" }]] },
@@ -648,6 +652,8 @@ async function handleMessage(msg: Message, tid: number) {
       });
       return;
     }
+    // Save button text in targetToken, state transitions to awaiting type selection
+    await setState(tid, "admin_ad_await_type", buttonText, null);
     await bot.sendMessage(
       tid,
       `✅ متن دکمه: *${buttonText}*\n\n📌 نوع تبلیغ را انتخاب کنید:`,
@@ -656,8 +662,8 @@ async function handleMessage(msg: Message, tid: number) {
         reply_markup: {
           inline_keyboard: [
             [
-              { text: "🔗 لینک (URL)", callback_data: `admin_ad_type_url_${encodeURIComponent(buttonText)}` },
-              { text: "💬 پیام متنی", callback_data: `admin_ad_type_msg_${encodeURIComponent(buttonText)}` },
+              { text: "🔗 لینک (URL)", callback_data: "admin_ad_type_url" },
+              { text: "💬 پیام متنی", callback_data: "admin_ad_type_msg" },
             ],
             [{ text: "❌ لغو", callback_data: "cancel" }],
           ],
