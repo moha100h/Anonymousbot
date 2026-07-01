@@ -11,14 +11,31 @@ if [ -f "$ENV_FILE" ]; then
   echo "   ✅ فایل .env بارگذاری شد"
 else
   echo ""
-  echo "   ⚠️  فایل .env پیدا نشد!"
-  echo "   لطفاً فایل /root/hiddenpmbot/.env را با محتوای زیر بسازید:"
+  echo "   ⚠️  فایل .env پیدا نشد — اطلاعات را وارد کنید:"
   echo ""
-  echo "   BOT_TOKEN=توکن_بات_تلگرام"
-  echo "   DATABASE_URL=postgresql://..."
-  echo "   ADMIN_ID=شناسه_ادمین"
+
+  read -rp "   BOT_TOKEN (توکن بات از BotFather): " BOT_TOKEN
+  if [ -z "$BOT_TOKEN" ]; then
+    echo "❌ BOT_TOKEN نمی‌تواند خالی باشد!"
+    exit 1
+  fi
+
+  read -rp "   ADMIN_ID (شناسه عددی ادمین): " ADMIN_ID
+  if [ -z "$ADMIN_ID" ]; then
+    echo "❌ ADMIN_ID نمی‌تواند خالی باشد!"
+    exit 1
+  fi
+
+  DATABASE_URL="postgresql://anchatbot:e4857209f4d13149c873b05161ef@localhost:5432/anchatbot"
+
+  cat > "$ENV_FILE" << ENVEOF
+BOT_TOKEN=$BOT_TOKEN
+DATABASE_URL=$DATABASE_URL
+ADMIN_ID=$ADMIN_ID
+ENVEOF
+
   echo ""
-  exit 1
+  echo "   ✅ فایل .env ساخته شد"
 fi
 
 if [ -z "$BOT_TOKEN" ]; then
